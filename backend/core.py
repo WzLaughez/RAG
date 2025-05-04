@@ -1,15 +1,37 @@
 import os
 from dotenv import load_dotenv
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_ollama import ChatOllama
+import json
+import re
+from rouge_score import rouge_scorer
+load_dotenv()
 from langchain_pinecone import PineconeVectorStore
 from langchain_huggingface  import HuggingFaceEmbeddings
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.retrieval import create_retrieval_chain
-import asyncio
+from langchain_core.prompts import PromptTemplate
+from langchain_ollama import ChatOllama
 from typing import Set, List, Dict, Any
-load_dotenv()
+
+def load_reference_answers():
+    with open("reference_answers.json", "r") as f:
+        return json.load(f)
+    
+def calculate_rouge_score(reference: str, generated: str):
+    """Calculate Rouge score between reference and generated texts."""
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    scores = scorer.score(reference, generated)
+    return scores
+
+def clean_answer_for_rouge(answer: str) -> str:
+    """
+    Clean up the generated answer by removing extra information (e.g., documentation references)
+    that are not necessary for Rouge score comparison.
+    """
+    # Remove documentation references (e.g., page numbers or further info about where to find more details)
+    answer = re.sub(r"(?i)(Dalam dokumentasi.*?Tahun \d{4}/\d{4}|Untuk mendapatkan informasi lebih lanjut.*)", "", answer)
+    # Optionally, remove any other specific extra text if needed (tailor regex to your needs)
+    answer = re.sub(r"(?i)([Pp]edoman Akademik UNTAN.*?halaman \d{1,2})", "", answer)
+    
+    # Trim and return the cleaned answer
+    return answer.strip()
 
 def format_docs(docs):
     result = ""
@@ -45,14 +67,14 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     #Embeddings
     embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
 
-    #Jenis LLM
-    llm = ChatOllama(model=llm_model_name, verbose=True)
-    
     #Jenis VectorStore
     vectorstore = PineconeVectorStore(
         index_name=os.environ["INDEX_NAME"],
         embedding=embeddings,
     )
+    
+    #Jenis LLM
+    llm = ChatOllama(model=llm_model_name, verbose=True )
 
     #Prompt
     template = """
@@ -61,6 +83,7 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     If the answer is not found in the documents, say "Pertanyaan tidak relevan dengan tugas saya".
     Tell the user where did you find the answer in the documents.
     Answer with Indonesian Language and exactly as the user asked and do not add any additional information.
+    Tell user too where to find further information.
         <context>
         {context}
         </context>
@@ -74,13 +97,6 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     You are a helpful assistant. You will be provided with a question and relevant documents.
     
     """
-    # Ini menggunakan Final Chain
-    
-    # rag_chain = (
-    #     {"context": vectorstore.as_retriever() | format_docs, "input": RunnablePassthrough()}
-    #     | custom_rag_prompt
-    #     | llm 
-    # )
     retriever = vectorstore.as_retriever()
     
     retrieved_docs = retriever.invoke(query)
@@ -91,6 +107,16 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
 
     answer = llm.invoke(final_prompt)
 
+    #Rouge Score Calculation
+    reference_answers = load_reference_answers()
+    cleaned_answer = clean_answer_for_rouge(answer.content)  # Clean the answer for Rouge comparison
+    # Initialize rouge_scores to None
+    rouge_scores = None
+    if query in reference_answers:
+        reference_answer = reference_answers[query]
+        rouge_scores = calculate_rouge_score(reference_answer, cleaned_answer)
+
+
     if "Pertanyaan tidak relevan dengan tugas saya" in answer.content:
         sources_string = "-"  # atau "Tidak ada sumber" atau None
     else:
@@ -100,20 +126,15 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
         "input": query,
         "answer": answer.content,
         "sources": sources_string,
+        "rouge_scores": rouge_scores, 
     }
     return result
 
-import torch
-
-# Memilih perangkat GPU jika tersedia
-device = "cuda" if torch.cuda.is_available() else "cpu"
 if __name__ == "__main__":
     query = "jelaskan bendera dan pataka Universitas Tanjungpura secara lengkap"
     model_name = "llama3"
     
-    # Mengecek perangkat yang digunakan (GPU/CPU)
-    print("Using device:", device)
-    # result = run_llm(query, model_name)
-    # print(result)
+    result = run_llm(query, model_name)
+    print(result)
 
     

@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -24,9 +24,9 @@ if __name__ == "__main__":
 
     embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
 
-    print("Ingesting")
+    # print("Ingesting")
 
-    #VectorStore
+    # #VectorStore
     PineconeVectorStore.from_documents(texts, embeddings, index_name=os.environ["INDEX_NAME"])
-    print("Finish")
+    # print("Finish")
     
