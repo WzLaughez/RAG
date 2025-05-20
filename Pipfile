@@ -14,9 +14,9 @@ faiss-cpu = "*"
 pypdf = "*"
 langchain-pinecone = "*"
 sentence-transformers = "*"
-streamlit = "*"
 langchain-huggingface = "*"
 rouge-score = "*"
+streamlit = "*"
 
 [dev-packages]
 

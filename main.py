@@ -1,11 +1,14 @@
 from backend.core import run_llm
 import streamlit as st
-import os
-os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 
 
-st.header("Question Answering System Pedoman Akademik Universitas Tanjungpura!")
+st.header("Question Answering System Pedoman Akademik Universitas Tanjungpura")
 
+model_choice = st.selectbox(
+"Pilih Model LLM:",
+options=["llama3", "phi4", "deepseek-r1"],
+index=0
+)
 
 prompt = st.text_input("Prompt:", placeholder="Masukkan pertanyaan disini")
 
@@ -23,7 +26,7 @@ if prompt:
     with st.spinner("Generating Response..."):
         # Call the backend function to get the answer
         # result = get_answer(prompt)
-        generated_response = run_llm(prompt, llm_model_name="llama3", chat_history=st.session_state["chat_history"])
+        generated_response = run_llm(prompt, llm_model_name=model_choice, chat_history=st.session_state["chat_history"])
         formatted_answer = (
             f"{generated_response['answer']} \n\n {generated_response['sources']} " 
         )

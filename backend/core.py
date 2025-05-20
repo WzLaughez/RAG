@@ -1,13 +1,14 @@
 import os
+import csv
 from dotenv import load_dotenv
 import json
 import re
-from rouge_score import rouge_scorer
 load_dotenv()
 from langchain_pinecone import PineconeVectorStore
 from langchain_huggingface  import HuggingFaceEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
+from rouge_score import rouge_scorer
 from typing import Set, List, Dict, Any
 
 def load_reference_answers():
@@ -18,6 +19,27 @@ def calculate_rouge_score(reference: str, generated: str):
     """Calculate Rouge score between reference and generated texts."""
     scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
     scores = scorer.score(reference, generated)
+    score_data = {
+        'rouge1_precision': scores['rouge1'].precision,
+        'rouge1_recall': scores['rouge1'].recall,
+        'rouge1_fmeasure': scores['rouge1'].fmeasure,
+        'rouge2_precision': scores['rouge2'].precision,
+        'rouge2_recall': scores['rouge2'].recall,
+        'rouge2_fmeasure': scores['rouge2'].fmeasure,
+        'rougeL_precision': scores['rougeL'].precision,
+        'rougeL_recall': scores['rougeL'].recall,
+        'rougeL_fmeasure': scores['rougeL'].fmeasure
+    }
+    # Write the scores to CSV
+    with open("rouge_score_deepseek-r1.csv", mode='a', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=score_data.keys())
+        
+        # Write header only if the file is empty
+        file.seek(0, 2)  # Move to the end of the file
+        if file.tell() == 0:
+            writer.writeheader()
+
+        writer.writerow(score_data)
     return scores
 
 def clean_answer_for_rouge(answer: str) -> str:
@@ -25,11 +47,14 @@ def clean_answer_for_rouge(answer: str) -> str:
     Clean up the generated answer by removing extra information (e.g., documentation references)
     that are not necessary for Rouge score comparison.
     """
+    # Remove for deepseek-r1 specific tags (e.g., <think>...</think>)
+    answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL | re.IGNORECASE)
     # Remove documentation references (e.g., page numbers or further info about where to find more details)
     answer = re.sub(r"(?i)(Dalam dokumentasi.*?Tahun \d{4}/\d{4}|Untuk mendapatkan informasi lebih lanjut.*)", "", answer)
     # Optionally, remove any other specific extra text if needed (tailor regex to your needs)
     answer = re.sub(r"(?i)([Pp]edoman Akademik UNTAN.*?halaman \d{1,2})", "", answer)
-    
+    # Normalize whitespace
+    answer = re.sub(r"\s+", " ", answer)
     # Trim and return the cleaned answer
     return answer.strip()
 
@@ -74,16 +99,14 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     )
     
     #Jenis LLM
-    llm = ChatOllama(model=llm_model_name, verbose=True )
+    llm = ChatOllama(model=llm_model_name, verbose=True)
 
     #Prompt
     template = """
     You are a helpful assistant. You will be provided with a question and relevant documents.
     Your task is to answer the question based on the information in the documents context.
     If the answer is not found in the documents, say "Pertanyaan tidak relevan dengan tugas saya".
-    Tell the user where did you find the answer in the documents.
     Answer with Indonesian Language and exactly as the user asked and do not add any additional information.
-    Tell user too where to find further information.
         <context>
         {context}
         </context>
@@ -131,8 +154,8 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     return result
 
 if __name__ == "__main__":
-    query = "jelaskan bendera dan pataka Universitas Tanjungpura secara lengkap"
-    model_name = "llama3"
+    query = "Sebutkan ketentuan UTS dan UAS di Universitas Tanjungpura!"
+    model_name = "deepseek-r1"
     
     result = run_llm(query, model_name)
     print(result)
