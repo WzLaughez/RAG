@@ -16,22 +16,20 @@ def load_reference_answers():
         return json.load(f)
     
 def calculate_rouge_score(reference: str, generated: str):
-    """Calculate Rouge score between reference and generated texts."""
-    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    """Hitung skor Rouge-1, Rouge-2, lalu simpan ke CSV."""
+    # Inisialisasi RougeScorer
+    scorer = rouge_scorer.RougeScorer(
+        ['rouge1', 'rouge2'], use_stemmer=True
+    )
     scores = scorer.score(reference, generated)
+
+    # Ambil hanya nilai fmeasure
     score_data = {
-        'rouge1_precision': scores['rouge1'].precision,
-        'rouge1_recall': scores['rouge1'].recall,
         'rouge1_fmeasure': scores['rouge1'].fmeasure,
-        'rouge2_precision': scores['rouge2'].precision,
-        'rouge2_recall': scores['rouge2'].recall,
-        'rouge2_fmeasure': scores['rouge2'].fmeasure,
-        'rougeL_precision': scores['rougeL'].precision,
-        'rougeL_recall': scores['rougeL'].recall,
-        'rougeL_fmeasure': scores['rougeL'].fmeasure
+        'rouge2_fmeasure': scores['rouge2'].fmeasure
     }
     # Write the scores to CSV
-    with open("rouge_score_deepseek-r1.csv", mode='a', newline='') as file:
+    with open("rouge_score_llama3_baru.csv", mode='a', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=score_data.keys())
         
         # Write header only if the file is empty
@@ -103,10 +101,10 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
 
     #Prompt
     template = """
-    You are a helpful assistant. You will be provided with a question and relevant documents.
+    You are a Question Answering System for Akademik Universitas Tanjungpura 2025. You will be provided with a question and relevant documents.
     Your task is to answer the question based on the information in the documents context.
-    If the answer is not found in the documents, say "Pertanyaan tidak relevan dengan tugas saya".
-    Answer with Indonesian Language and exactly as the user asked and do not add any additional information.
+    If the Question is not relevant with the context, say "Pertanyaan tidak relevan dengan tugas saya".
+    Answer with Indonesian Language.
         <context>
         {context}
         </context>
@@ -121,7 +119,6 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     
     """
     retriever = vectorstore.as_retriever()
-    
     retrieved_docs = retriever.invoke(query)
     formatted_context = format_docs(retrieved_docs)
     sources_string = create_source_string(retrieved_docs)
@@ -154,8 +151,8 @@ def run_llm(query: str, llm_model_name: str, chat_history: List[Dict[str, Any]] 
     return result
 
 if __name__ == "__main__":
-    query = "Sebutkan ketentuan UTS dan UAS di Universitas Tanjungpura!"
-    model_name = "deepseek-r1"
+    query = "Apa visi Universitas Tanjungpura?"
+    model_name = "llama3"
     
     result = run_llm(query, model_name)
     print(result)

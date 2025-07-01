@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QAS UNTAN</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <div class="chat-container">
+    <h1 class="title">QAS - Pedoman Akademik UNTAN</h1>
+
+    <div id="chatHistory" class="chat-history"></div>
+
+    <div class="input-container">
+      <input id="promptInput" placeholder="Masukkan pertanyaan di sini..." />
+      <button id="sendBtn">Kirim</button>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+</html>
